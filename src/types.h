@@ -36,9 +36,15 @@ typedef enum AssociatedImage {
   Macro,
 } AssociatedImage;
 
+inline static const char *stringFromAssociatedImage(enum AssociatedImage f) {
+  static const char *strings[] = {"thumbnail\0", "label\0", "macro\0"};
+  return strings[f];
+}
+
 // Slide dimensions properties
 typedef struct slide_props_t {
   double mpp;
+  double magnification;
   dpos_t spacings;
   ipos_t size, offset, bounds;
 } slide_props_t;

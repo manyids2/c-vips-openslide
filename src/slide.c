@@ -1,4 +1,27 @@
 #include "slide.h"
+#include "types.h"
+#include <openslide/openslide.h>
+#include <string.h>
+
+oslide_t open_oslide(char *path) {
+  openslide_t *osr = openslide_open(path);
+  oslide_t oslide = {
+      .path = path,
+      .osr = osr,
+      .slide_props =
+          {
+              .mpp = get_mpp(osr),
+              .magnification = get_magnification(osr),
+              .size = get_size(osr),
+              .spacings = get_spacings(osr),
+              .offset = get_offset(osr),
+              .bounds = get_bounds(osr),
+          },
+  };
+  return oslide;
+}
+
+void close_oslide(oslide_t *oslide) { openslide_close(oslide->osr); }
 
 int length_associated_images(openslide_t *osr) {
   int count = 0;
@@ -9,6 +32,88 @@ int length_associated_images(openslide_t *osr) {
     associated_image_names++;
   };
   return count;
+}
+
+int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
+  const char *const *associated_image_names =
+      openslide_get_associated_image_names(osr);
+
+  const char *iname = stringFromAssociatedImage(name);
+  while (*associated_image_names) {
+    int64_t w, h;
+    const char *name = *associated_image_names;
+    if (!strcmp(name, iname)) {
+      // Get size of thumbnail
+      openslide_get_associated_image_dimensions(osr, name, &w, &h);
+
+      // Set size, allocate data
+      // NOTE: Remember to free
+      thumbnail->width = w;
+      thumbnail->height = h;
+      thumbnail->bands = 4; // ARGB
+      thumbnail->data = malloc(w * h * sizeof(uint32_t));
+
+      // Read thumbnail
+      openslide_read_associated_image(osr, name, (uint32_t *)thumbnail->data);
+
+      // No error
+      return 0;
+    }
+    associated_image_names++;
+  }
+  // Could not find image
+  return 1;
+}
+
+double get_mpp(openslide_t *osr) {
+  return atof(openslide_get_property_value(osr, "openslide.mpp-x"));
+}
+
+double get_magnification(openslide_t *osr) {
+  return atof(openslide_get_property_value(osr, "openslide.magnification"));
+}
+
+dpos_t get_spacings(openslide_t *osr) {
+  dpos_t spacings = {
+      .x = atof(openslide_get_property_value(osr, "openslide.mpp-x")),
+      .y = atof(openslide_get_property_value(osr, "openslide.mpp-y"))};
+  return spacings;
+}
+
+int get_level_count(openslide_t *osr) {
+  int level_count =
+      atoi(openslide_get_property_value(osr, "openslide.level-count"));
+  return level_count;
+}
+// TODO:
+double *get_level_downsamples(openslide_t *osr) {
+  double *out = NULL;
+  return out;
+}
+ipos_t *get_level_dimensions(openslide_t *osr) {
+  ipos_t *out = NULL;
+  return out;
+}
+
+ipos_t get_size(openslide_t *osr) {
+  ipos_t size = {
+      .x = atoi(openslide_get_property_value(osr, "openslide.level[0].height")),
+      .y = atoi(openslide_get_property_value(osr, "openslide.level[0].width"))};
+  return size;
+}
+
+ipos_t get_offset(openslide_t *osr) {
+  ipos_t offset = {
+      .x = atoi(openslide_get_property_value(osr, "openslide.offset-x")),
+      .y = atoi(openslide_get_property_value(osr, "openslide.offset-y"))};
+  return offset;
+}
+
+ipos_t get_bounds(openslide_t *osr) {
+  ipos_t bounds = {
+      .x = atoi(openslide_get_property_value(osr, "openslide.bounds-x")),
+      .y = atoi(openslide_get_property_value(osr, "openslide.bounds-y"))};
+  return bounds;
 }
 
 /* Return a region at a specific scaling level of the pyramid.
