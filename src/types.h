@@ -30,12 +30,14 @@ typedef struct image_t {
   uint8_t *data; // From openslide -> ARGB, 4 * uint8
 } image_t;
 
+// Associated Images
 typedef enum AssociatedImage {
   Thumbnail = 1,
   Label,
   Macro,
 } AssociatedImage;
 
+// Actual names
 inline static const char *stringFromAssociatedImage(enum AssociatedImage f) {
   static const char *strings[] = {"thumbnail\0", "label\0", "macro\0"};
   return strings[f];
@@ -57,12 +59,13 @@ typedef struct level_props_t {
   ipos_t *level_dimensions;
 } level_props_t;
 
-// Params to request read_region from openslide
+// Params to account for interpolation sampling
 typedef struct native_t {
   dpos_t fractional_coordinates;
   dpos_t native_size;
 } native_t;
 
+// Params to request read_region from openslide
 typedef struct request_t {
   ipos_t location;
   int level;

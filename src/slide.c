@@ -1,27 +1,50 @@
 #include "slide.h"
-#include "types.h"
-#include <openslide/openslide.h>
-#include <string.h>
+#include "properties.h"
 
 oslide_t open_oslide(char *path) {
   openslide_t *osr = openslide_open(path);
-  oslide_t oslide = {
-      .path = path,
-      .osr = osr,
-      .slide_props =
-          {
-              .mpp = get_mpp(osr),
-              .magnification = get_magnification(osr),
-              .size = get_size(osr),
-              .spacings = get_spacings(osr),
-              .offset = get_offset(osr),
-              .bounds = get_bounds(osr),
-          },
-  };
+
+  // Initialize primitives
+  oslide_t oslide = {.path = path,
+                     .osr = osr,
+                     .slide_props =
+                         {
+                             .mpp = get_mpp(osr),
+                             .magnification = get_magnification(osr),
+                             .size = get_size(osr),
+                             .spacings = get_spacings(osr),
+                             .offset = get_offset(osr),
+                             .bounds = get_bounds(osr),
+                         },
+                     .level_props = {
+                         .level_count = openslide_get_level_count(osr),
+                     }};
+
+  // Need to malloc for dynamic arrays
+  int level_count = openslide_get_level_count(osr);
+
+  // Downsamples
+  oslide.level_props.level_downsamples = malloc(level_count * sizeof(double));
+  get_level_downsamples(osr, level_count, oslide.level_props.level_downsamples);
+
+  // Dimensions
+  oslide.level_props.level_dimensions = malloc(level_count * sizeof(ipos_t));
+  get_level_dimensions(osr, level_count, oslide.level_props.level_dimensions);
+
   return oslide;
 }
 
-void close_oslide(oslide_t *oslide) { openslide_close(oslide->osr); }
+void close_oslide(oslide_t *oslide) {
+  openslide_close(oslide->osr);
+  // Downsamples
+  if (oslide->level_props.level_downsamples) {
+    free(oslide->level_props.level_downsamples);
+  }
+  // Dimensions
+  if (oslide->level_props.level_dimensions) {
+    free(oslide->level_props.level_dimensions);
+  }
+}
 
 int length_associated_images(openslide_t *osr) {
   int count = 0;
@@ -66,53 +89,57 @@ int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
 }
 
 double get_mpp(openslide_t *osr) {
-  return atof(openslide_get_property_value(osr, "openslide.mpp-x"));
+  return atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_X));
 }
 
 double get_magnification(openslide_t *osr) {
-  return atof(openslide_get_property_value(osr, "openslide.magnification"));
+  return atof(openslide_get_property_value(osr, PROPERTY_NAME_OBJECTIVE_POWER));
 }
 
 dpos_t get_spacings(openslide_t *osr) {
   dpos_t spacings = {
-      .x = atof(openslide_get_property_value(osr, "openslide.mpp-x")),
-      .y = atof(openslide_get_property_value(osr, "openslide.mpp-y"))};
+      .x = atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_X)),
+      .y = atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_Y))};
   return spacings;
 }
 
-int get_level_count(openslide_t *osr) {
-  int level_count =
-      atoi(openslide_get_property_value(osr, "openslide.level-count"));
-  return level_count;
+void get_level_downsamples(openslide_t *osr, int level_count,
+                           double *level_downsamples) {
+  for (int i = 0; i < level_count; i++) {
+    level_downsamples[i] = openslide_get_level_downsample(osr, i);
+  }
 }
-// TODO:
-double *get_level_downsamples(openslide_t *osr) {
-  double *out = NULL;
-  return out;
-}
-ipos_t *get_level_dimensions(openslide_t *osr) {
-  ipos_t *out = NULL;
-  return out;
+
+void get_level_dimensions(openslide_t *osr, int level_count,
+                          ipos_t *level_dimensions) {
+  for (int level = 0; level < level_count; level++) {
+
+    int64_t h, w;
+    openslide_get_level_dimensions(osr, level, &w, &h);
+    ipos_t dimensions = {.x = w, .y = h};
+    level_dimensions[level] = dimensions;
+  }
 }
 
 ipos_t get_size(openslide_t *osr) {
-  ipos_t size = {
-      .x = atoi(openslide_get_property_value(osr, "openslide.level[0].height")),
-      .y = atoi(openslide_get_property_value(osr, "openslide.level[0].width"))};
+  int64_t h, w;
+  openslide_get_level0_dimensions(osr, &w, &h);
+  ipos_t size = {.x = w, .y = h};
   return size;
 }
 
 ipos_t get_offset(openslide_t *osr) {
   ipos_t offset = {
-      .x = atoi(openslide_get_property_value(osr, "openslide.offset-x")),
-      .y = atoi(openslide_get_property_value(osr, "openslide.offset-y"))};
+      .x = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_X)),
+      .y = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_Y))};
   return offset;
 }
 
 ipos_t get_bounds(openslide_t *osr) {
   ipos_t bounds = {
-      .x = atoi(openslide_get_property_value(osr, "openslide.bounds-x")),
-      .y = atoi(openslide_get_property_value(osr, "openslide.bounds-y"))};
+      .x = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_WIDTH)),
+      .y =
+          atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_HEIGHT))};
   return bounds;
 }
 

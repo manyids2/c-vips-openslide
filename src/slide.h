@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Main struct to hold everything
 typedef struct oslide_t {
@@ -13,7 +14,9 @@ typedef struct oslide_t {
   level_props_t level_props;
 } oslide_t;
 
+// Open, close
 oslide_t open_oslide(char *path);
+void close_oslide(oslide_t *oslide);
 
 // Utils
 char *str_at(char **p, int i);
@@ -32,16 +35,15 @@ ipos_t get_size(openslide_t *osr);
 ipos_t get_offset(openslide_t *osr);
 ipos_t get_bounds(openslide_t *osr);
 
-// level stuff
-int get_level_count(openslide_t *osr);
-double *get_level_downsamples(openslide_t *osr);
-ipos_t *get_level_dimensions(openslide_t *osr);
+// level stuff - putting in output for mem management
+void get_level_downsamples(openslide_t *osr, int level_count,
+                           double *level_downsamples);
+void get_level_dimensions(openslide_t *osr, int level_count,
+                          ipos_t *level_dimensions);
 
 // Scaling helpers
 double get_scaling(double mpp);
 ipos_t get_scaled_size(ipos_t size, double scaling);
-
-// Open, close
 
 // MVP - takes output value in args for better memory management
 int read_region_request(request_t *request, ipos_t location, double scaling,
