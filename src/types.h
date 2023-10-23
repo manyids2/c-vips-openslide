@@ -27,7 +27,7 @@ typedef struct dbox_t {
 // Images
 typedef struct image_t {
   int width, height, bands;
-  uint8_t *data; // From openslide -> ARGB, 4 * uint8
+  uint32_t *data; // From openslide -> ARGB, 4 * uint8
 } image_t;
 
 // Associated Images

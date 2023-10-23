@@ -26,6 +26,9 @@ oslide_t open_oslide(char *path) {
                          .level_count = openslide_get_level_count(osr),
                      }};
 
+  // Shortcut for size
+  oslide.level_props.slide_size = oslide.slide_props.size;
+
   // Need to malloc for dynamic arrays
   int level_count = openslide_get_level_count(osr);
   oslide.level_props.level_count = level_count;
@@ -103,11 +106,14 @@ int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
       // NOTE: Remember to free
       thumbnail->width = w;
       thumbnail->height = h;
-      thumbnail->bands = 4; // ARGB
+      thumbnail->bands = 4; // RGBA
       thumbnail->data = malloc(w * h * sizeof(uint32_t));
 
-      // Read thumbnail
-      openslide_read_associated_image(osr, name, (uint32_t *)thumbnail->data);
+      // Read thumbnail - ARGB
+      openslide_read_associated_image(osr, name, thumbnail->data);
+
+      // Convert to RGBA
+      argb2rgba(thumbnail->data, w * h);
 
       // No error
       return 0;
@@ -268,41 +274,47 @@ ipos_t get_bounds(openslide_t *osr) {
  * relative
  *   coordinates (fractional_coordinates).
  */
-int read_region_request(request_t *request, ipos_t location, double scaling,
-                        ipos_t size, openslide_t *osr,
-                        level_props_t *level_props) {
-  // -- Step 1 : Map region ---
-  ipos_t level_size = get_scaled_size(level_props->slide_size, scaling);
+
+// 0 -> invalid; 1 -> valid
+int is_valid_region(ipos_t location, double scaling, ipos_t size,
+                    level_props_t level_props) {
+  ipos_t level_size = get_scaled_size(level_props.slide_size, scaling);
 
   // Size values must be greater than zero.
   if ((level_size.x < 0) | (level_size.y < 0)) {
-    return -1;
+    return 0;
   }
 
   // Requested region is outside level boundaries.
   if ((location.x < 0) | (location.y < 0) |
       (location.x + size.x > level_size.x) |
       (location.y + size.y > level_size.y)) {
-    return -1;
+    return 0;
   }
+  return 1;
+}
 
-  // Map to native level
+request_t read_region_request(ipos_t location, double scaling, ipos_t size,
+                              openslide_t *osr, level_props_t level_props) {
+  // NOTE: Assuming ` is_valid_region(...) == 1 `
+
+  // For our example
+  // LEVEL_SIZE:  [11477  8212]
+  // BEST_LEVEL:  1
+  // NATIVE_LEVEL_SIZE:  (11500, 8228)
+  // NATIVE_LEVEL_DOWNSAMPLE:  4.000121536217793
+
+  // Convert location and size to double
+  // Get best level from openslide
   int native_level = openslide_get_best_level_for_downsample(osr, 1 / scaling);
-  ipos_t native_level_size = level_props->level_dimensions[native_level];
 
-  // Henceforth almost everything is double until we cast to int64
-  double native_level_downsample = level_props->level_downsamples[native_level];
+  // Convert location and size to double
+  ipos_t native_level_size = level_props.level_dimensions[native_level];
+  double native_level_downsample = level_props.level_downsamples[native_level];
   double native_scaling = scaling * native_level_downsample;
-  dpos_t dlocation = {.x = location.x, .y = location.y};
-  dpos_t dsize = {.x = size.x, .y = size.y};
-  dpos_t native_location = _div(dlocation, native_scaling);
-  dpos_t native_size = _div(dsize, native_scaling);
+  dpos_t native_location = _div(to_double(location), native_scaling);
+  dpos_t native_size = _div(to_double(size), native_scaling);
 
-  // -- Step 2 : Compute extra pixels for sampling ---
-  // OpenSlide doesn't feature float coordinates to extract a region.
-  // We need to extract enough pixels and let PIL do the interpolation.
-  // In the borders, the basis functions of other samples contribute to
-  // the final value.
   // PIL lanczos uses 3 pixels as support. See pillow: https://git.io/JG0QD
   double native_extra_pixels;
   if (native_scaling > 1) {
@@ -312,79 +324,114 @@ int read_region_request(request_t *request, ipos_t location, double scaling,
   }
 
   // Compute the native location while counting the extra pixels.
-  dpos_t native_location_adapted =
-      _floor(_sub(native_location, native_extra_pixels));
-  dpos_t native_size_adapted =
+  ipos_t native_location_adapted =
+      to_int(_floor(_sub(native_location, native_extra_pixels)));
+  native_location_adapted =
       _clip2size(native_location_adapted, native_level_size);
 
   // Unfortunately openslide requires the location in pixels from level 0.
-  dpos_t level_zero_location_adapted =
-      _floor(_mul(native_location_adapted, native_level_downsample));
+  ipos_t level_zero_location_adapted = to_int(_floor(
+      _mul(to_double(native_location_adapted), native_level_downsample)));
 
   // Recompute native_size_adapted, native_location_adapted
-  native_location_adapted =
-      _div(level_zero_location_adapted, native_level_downsample);
-  native_size_adapted =
-      _ceil(_add(_addv(native_location, native_size), native_extra_pixels));
-  native_size_adapted = _clip2size(native_size_adapted, native_level_size);
-  native_size_adapted = _subv(native_size_adapted, native_location_adapted);
+  dpos_t dnative_location_adapted =
+      _div(to_double(level_zero_location_adapted), native_level_downsample);
+  ipos_t native_size_adapted = to_int(
+      _ceil(_add(_addv(native_location, native_size), native_extra_pixels)));
+  dpos_t dnative_size_adapted =
+      _subv(to_double(_clip2size(native_size_adapted, native_level_size)),
+            dnative_location_adapted);
 
   // By casting to int we introduce a small error in the right boundary
-  // leading # to a smaller region which might lead to the target region to
-  // overflow from the sampled # region.
-  ipos_t ilevel_zero_location_adapted = {
-      .x = level_zero_location_adapted.x,
-      .y = level_zero_location_adapted.y,
-  };
-  ipos_t inative_size_adapted = {
-      .x = native_size_adapted.x,
-      .y = native_size_adapted.y,
-  };
+  // leading to a smaller region which might lead to the target region to
+  // overflow from the sampled region.
+  native_size_adapted = to_int(_ceil(dnative_size_adapted));
 
   // For read_region
-  request->location = ilevel_zero_location_adapted;
-  request->level = native_level;
-  request->size = inative_size_adapted;
+  request_t request = {
+      .location = level_zero_location_adapted,
+      .level = native_level,
+      .size = native_size_adapted,
+      .native =
+          {
+              .fractional_coordinates =
+                  _subv(native_location, dnative_location_adapted),
+              .native_size = native_size,
+          },
+  };
 
-  // For post processing
-  request->native.fractional_coordinates =
-      _subv(native_location, native_location_adapted);
-  request->native.native_size = native_size;
+  return request;
+}
+
+int read_region(image_t *region, openslide_t *osr, request_t request) {
+  // We extract the region via openslide with the required extra border
+  openslide_read_region(osr, (uint32_t *)region->data, request.location.x,
+                        request.location.y, request.level, request.size.x,
+                        request.size.y);
+
+  // TODO: Read size of returned region
+  dpos_t region_size = to_double(request.size);
+
+  // # Within this region, there are a bunch of extra pixels, we interpolate
+  // to sample # the pixel in the right position to retain the right sample
+  // weight. # We also need to clip to the border, as some readers (e.g
+  // mirax) have one pixel less at the border.
+
+  // # TODO: This clipping could be in an error in OpenSlide mirax reader,
+  // but it's a minor thing for now
+  dpos_t fractional_coordinates = request.native.fractional_coordinates;
+  dpos_t native_size = request.native.native_size;
+  dpos_t clipped_bottom_right =
+      _clip2size_d(_addv(fractional_coordinates, native_size), region_size);
+  dbox_t box = {
+      .x1 = fractional_coordinates.x,
+      .y1 = fractional_coordinates.y,
+      .x2 = clipped_bottom_right.x,
+      .y2 = clipped_bottom_right.y,
+  };
+  ipos_t size = request.size;
+  printf("box: %f, %f, %f, %f\n", box.x1, box.y1, box.x2, box.y2);
+  printf("size: %7ld, %7ld\n", size.x, size.y);
+
+  // TODO: Finally, resize and return
+  // return region.resize(size, resample=resampling, box=box)
 
   return 0;
 }
 
-// int read_region(image_t *region, openslide_t *osr, request_t request,
-//                 Resampling resampling) {
-//   // We extract the region via openslide with the required extra border
-//   openslide_read_region(osr, (uint32_t *)region->data, request.location.x,
-//                         request.location.y, request.level, request.size.x,
-//                         request.size.y);
-//
-//   // TODO: Read size of returned region
-//   ipos_t region_size = {.x = 10, .y = 10};
-//
-//   // # Within this region, there are a bunch of extra pixels, we interpolate
-//   // to sample # the pixel in the right position to retain the right sample
-//   // weight. # We also need to clip to the border, as some readers (e.g
-//   // mirax) have one pixel less at the border.
-//
-//   // # TODO: This clipping could be in an error in OpenSlide mirax reader,
-//   // but it's a minor thing for now
-//   dpos_t fractional_coordinates = request.native.fractional_coordinates;
-//   dpos_t native_size = request.native.native_size;
-//   dpos_t clipped_bottom_right =
-//       _clip2size(_addv(fractional_coordinates, native_size), region_size);
-//   dbox_t box = {
-//       .x1 = fractional_coordinates.x,
-//       .y1 = fractional_coordinates.y,
-//       .x2 = clipped_bottom_right.x,
-//       .y2 = clipped_bottom_right.y,
-//   };
-//   ipos_t size = request.size;
-//
-//   // TODO: Finally, resize and return
-//   // return region.resize(size, resample=resampling, box=box)
-//
-//   return 0;
-// }
+void print_request(request_t request) {
+  printf("Request:\n"
+         "  location: %7ld, %7ld\n"
+         "  level   : %7d\n"
+         "  size    : %7ld, %7ld\n"
+         "  native  : \n"
+         "    fractional: %f, %f\n"
+         "    size      : %f, %f\n",
+         request.location.x, request.location.y, request.level, request.size.x,
+         request.size.y, request.native.fractional_coordinates.x,
+         request.native.fractional_coordinates.y, request.native.native_size.x,
+         request.native.native_size.y);
+}
+
+// CSV helpers
+void print_lss_header(void) {
+  printf("location.x,location.y,scaling,size.x,size.y,");
+}
+void print_lss_row(ipos_t location, double scaling, ipos_t size) {
+  printf("%ld,%ld,%f,%ld,%ld,", location.x, location.y, scaling, size.x,
+         size.y);
+}
+void print_request_header(void) {
+  printf("%s,%s,%s,%s,%s,%s,%s,%s,%s\n", "request.location.x",
+         "request.location.y", "request.level", "request.size.x",
+         "request.size.y", "request.native.fractional_coordinates.x",
+         "request.native.fractional_coordinates.y",
+         "request.native.native_size.x", "request.native.native_size.y");
+}
+void print_request_row(request_t request) {
+  printf("%ld,%ld,%d,%ld,%ld,%f,%f,%f,%f\n", request.location.x,
+         request.location.y, request.level, request.size.x, request.size.y,
+         request.native.fractional_coordinates.x,
+         request.native.fractional_coordinates.y, request.native.native_size.x,
+         request.native.native_size.y);
+}

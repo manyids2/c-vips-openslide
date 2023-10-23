@@ -16,7 +16,7 @@ int resize_image(image_t *out, image_t *in, ipos_t size,
   out->width = size.x;
   out->height = size.y;
   out->bands = in->bands;
-  out->data = rsz->data;
+  out->data = (uint32_t *)rsz->data;
 
   return err;
 }
@@ -37,7 +37,6 @@ int rescale_image(image_t *out, image_t *in, double scaling,
   out->width = size_x;
   out->height = size_y;
   out->bands = in->bands;
-  out->data = rsz->data;
-
+  out->data = (uint32_t *)rsz->data;
   return err;
 }

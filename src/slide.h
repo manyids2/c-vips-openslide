@@ -17,6 +17,7 @@ typedef struct oslide_t {
 // Open, close
 oslide_t open_oslide(char *path);
 void close_oslide(oslide_t *oslide);
+void print_slide(oslide_t *oslide);
 
 // Utils
 char *str_at(char **p, int i);
@@ -41,16 +42,22 @@ void get_level_downsamples(openslide_t *osr, int level_count,
 void get_level_dimensions(openslide_t *osr, int level_count,
                           ipos_t *level_dimensions);
 
-void print_slide(oslide_t *oslide);
-
 // Scaling helpers
 double get_scaling(double mpp);
 ipos_t get_scaled_size(ipos_t size, double scaling);
 
-// MVP - takes output value in args for better memory management
-int read_region_request(request_t *request, ipos_t location, double scaling,
-                        ipos_t size, openslide_t *osr,
-                        level_props_t *level_props);
+// MVP - Get only request params
+int is_valid_region(ipos_t location, double scaling, ipos_t size,
+                    level_props_t level_props);
+request_t read_region_request(ipos_t location, double scaling, ipos_t size,
+                              openslide_t *osr, level_props_t level_props);
+void print_request(request_t request);
 
-// int read_region(image_t *region, openslide_t *osr, request_t request,
-//                 Resampling resampling);
+// Actual sauce, read and resize
+int read_region(image_t *region, openslide_t *osr, request_t request);
+
+// For dumping to csv
+void print_lss_header(void);
+void print_lss_row(ipos_t location, double scaling, ipos_t size);
+void print_request_header(void);
+void print_request_row(request_t);
