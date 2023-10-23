@@ -1,8 +1,14 @@
 #include "slide.h"
 #include "properties.h"
+#include <openslide/openslide.h>
+#include <stdio.h>
+#include <string.h>
 
 oslide_t open_oslide(char *path) {
   openslide_t *osr = openslide_open(path);
+
+  // Allocate for path?
+  // oslide.path = malloc((strlen(path) + 1) * sizeof(char));
 
   // Initialize primitives
   oslide_t oslide = {.path = path,
@@ -22,6 +28,7 @@ oslide_t open_oslide(char *path) {
 
   // Need to malloc for dynamic arrays
   int level_count = openslide_get_level_count(osr);
+  oslide.level_props.level_count = level_count;
 
   // Downsamples
   oslide.level_props.level_downsamples = malloc(level_count * sizeof(double));
@@ -34,8 +41,30 @@ oslide_t open_oslide(char *path) {
   return oslide;
 }
 
+void print_slide(oslide_t *oslide) {
+  printf("mpp     : %f\n", oslide->slide_props.mpp);
+  printf("spacing : %f, %f\n", oslide->slide_props.spacings.x,
+         oslide->slide_props.spacings.y);
+  printf("size    : %7ld, %7ld\n", oslide->slide_props.size.x,
+         oslide->slide_props.size.y);
+  printf("offset  : %7ld, %7ld\n", oslide->slide_props.offset.x,
+         oslide->slide_props.offset.y);
+  printf("bounds  : %7ld, %7ld\n", oslide->slide_props.bounds.x,
+         oslide->slide_props.bounds.y);
+  printf("level_count : %d\n", oslide->level_props.level_count);
+  printf("level_downsamples: \n");
+  for (int level = 0; level < oslide->level_props.level_count; level++) {
+    printf("  %2d: %f\n", level, oslide->level_props.level_downsamples[level]);
+  }
+  printf("level_dimensions : \n");
+  for (int level = 0; level < oslide->level_props.level_count; level++) {
+    printf("  %2d: %7ld,%7ld\n", level,
+           oslide->level_props.level_dimensions[level].x,
+           oslide->level_props.level_dimensions[level].y);
+  }
+}
+
 void close_oslide(oslide_t *oslide) {
-  openslide_close(oslide->osr);
   // Downsamples
   if (oslide->level_props.level_downsamples) {
     free(oslide->level_props.level_downsamples);
@@ -44,6 +73,7 @@ void close_oslide(oslide_t *oslide) {
   if (oslide->level_props.level_dimensions) {
     free(oslide->level_props.level_dimensions);
   }
+  openslide_close(oslide->osr);
 }
 
 int length_associated_images(openslide_t *osr) {
@@ -88,32 +118,16 @@ int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
   return 1;
 }
 
-double get_mpp(openslide_t *osr) {
-  return atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_X));
-}
-
-double get_magnification(openslide_t *osr) {
-  return atof(openslide_get_property_value(osr, PROPERTY_NAME_OBJECTIVE_POWER));
-}
-
-dpos_t get_spacings(openslide_t *osr) {
-  dpos_t spacings = {
-      .x = atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_X)),
-      .y = atof(openslide_get_property_value(osr, PROPERTY_NAME_MPP_Y))};
-  return spacings;
-}
-
 void get_level_downsamples(openslide_t *osr, int level_count,
                            double *level_downsamples) {
-  for (int i = 0; i < level_count; i++) {
-    level_downsamples[i] = openslide_get_level_downsample(osr, i);
+  for (int level = 0; level < level_count; level++) {
+    level_downsamples[level] = openslide_get_level_downsample(osr, level);
   }
 }
 
 void get_level_dimensions(openslide_t *osr, int level_count,
                           ipos_t *level_dimensions) {
   for (int level = 0; level < level_count; level++) {
-
     int64_t h, w;
     openslide_get_level_dimensions(osr, level, &w, &h);
     ipos_t dimensions = {.x = w, .y = h};
@@ -128,18 +142,91 @@ ipos_t get_size(openslide_t *osr) {
   return size;
 }
 
+double get_mpp(openslide_t *osr) {
+  double mpp;
+  const char *c_mpp = openslide_get_property_value(osr, PROPERTY_NAME_MPP_X);
+  // Set to zero if not found
+  if (!c_mpp) {
+    mpp = 0.0;
+  } else {
+    mpp = atof(c_mpp);
+  }
+  return mpp;
+}
+
+double get_magnification(openslide_t *osr) {
+  double magnification;
+  const char *c_magnification =
+      openslide_get_property_value(osr, PROPERTY_NAME_OBJECTIVE_POWER);
+  // Set to zero if not found
+  if (!c_magnification) {
+    magnification = 0.0;
+  } else {
+    magnification = atof(c_magnification);
+  }
+  return magnification;
+}
+
+dpos_t get_spacings(openslide_t *osr) {
+  double mpp_x;
+  const char *c_mpp_x = openslide_get_property_value(osr, PROPERTY_NAME_MPP_X);
+  // Set to zero if not found
+  if (!c_mpp_x) {
+    mpp_x = 0.0;
+  } else {
+    mpp_x = atof(c_mpp_x);
+  }
+
+  double mpp_y;
+  const char *c_mpp_y = openslide_get_property_value(osr, PROPERTY_NAME_MPP_Y);
+  // Set to zero if not found
+  if (!c_mpp_y) {
+    mpp_y = 0.0;
+  } else {
+    mpp_y = atof(c_mpp_y);
+  }
+  dpos_t spacings = {.x = mpp_x, .y = mpp_y};
+  return spacings;
+}
+
 ipos_t get_offset(openslide_t *osr) {
-  ipos_t offset = {
-      .x = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_X)),
-      .y = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_Y))};
+  const char *c_x = openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_X);
+  const char *c_y = openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_Y);
+  int64_t x, y;
+  if (!c_x) {
+    x = 0;
+  } else {
+    x = atof(c_x);
+  }
+  if (!c_y) {
+    y = 0;
+  } else {
+    y = atof(c_y);
+  }
+  ipos_t offset = {.x = x, .y = y};
   return offset;
 }
 
 ipos_t get_bounds(openslide_t *osr) {
-  ipos_t bounds = {
-      .x = atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_WIDTH)),
-      .y =
-          atoi(openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_HEIGHT))};
+  // Set to slide size if not found
+  int64_t h, w;
+  openslide_get_level0_dimensions(osr, &w, &h);
+  const char *c_x =
+      openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_WIDTH);
+  const char *c_y =
+      openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_HEIGHT);
+  int64_t x, y;
+  if (!c_x) {
+    x = w;
+  } else {
+    x = atof(c_x);
+  }
+  if (!c_y) {
+    y = h;
+  } else {
+    y = atof(c_y);
+  }
+  ipos_t bounds = {.x = x, .y = y};
   return bounds;
 }
 

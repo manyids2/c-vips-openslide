@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+      {
+          "name": "Debug",
+          "type": "c",
+          "request": "launch",
+          "mode": "auto",
+          "program": "${fileDirname} /data/slides/Aperio/CMU-1.svs",
+          "env": {
+              "APP_FOO": "bar"
+          }
+      }
+  ]
+}

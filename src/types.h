@@ -32,7 +32,7 @@ typedef struct image_t {
 
 // Associated Images
 typedef enum AssociatedImage {
-  Thumbnail = 1,
+  Thumbnail = 0,
   Label,
   Macro,
 } AssociatedImage;

@@ -41,6 +41,8 @@ void get_level_downsamples(openslide_t *osr, int level_count,
 void get_level_dimensions(openslide_t *osr, int level_count,
                           ipos_t *level_dimensions);
 
+void print_slide(oslide_t *oslide);
+
 // Scaling helpers
 double get_scaling(double mpp);
 ipos_t get_scaled_size(ipos_t size, double scaling);
