@@ -1,0 +1,7 @@
+option(
+  'test',
+  type : 'feature',
+  value : 'auto',
+  yield : false,
+  description : 'Build tests',
+)

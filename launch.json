@@ -6,10 +6,7 @@
           "type": "c",
           "request": "launch",
           "mode": "auto",
-          "program": "${fileDirname} /data/slides/Aperio/CMU-1.svs",
-          "env": {
-              "APP_FOO": "bar"
-          }
+          "program": "./build/src/c-vips-openslide /data/slides/Aperio/CMU-1.svs"
       }
   ]
 }
