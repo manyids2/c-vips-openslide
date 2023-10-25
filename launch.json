@@ -2,11 +2,11 @@
   "version": "0.2.0",
   "configurations": [
       {
-          "name": "Debug",
+          "name": "Build",
           "type": "c",
           "request": "launch",
           "mode": "auto",
-          "program": "./build/src/c-vips-openslide /data/slides/Aperio/CMU-1.svs"
+          "program": "cd build;meson compile;"
       }
   ]
 }

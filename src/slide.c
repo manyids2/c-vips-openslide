@@ -1,7 +1,8 @@
 #include "slide.h"
 #include "constants.h"
-#include <openslide/openslide.h>
+#include "resize.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 oslide_t oslide_open(char *path) {
@@ -364,8 +365,16 @@ request_t read_region_request(ipos_t location, double scaling, ipos_t size,
 }
 
 int read_region(image_t *region, openslide_t *osr, request_t request) {
+  // Region is expected size, so should be lower than request.size
+
+  image_t padded_region = {
+      .width = request.size.x,
+      .height = request.size.y,
+      .bands = 4,
+      .data = malloc(request.size.x * request.size.y * sizeof(uint32_t))};
+
   // We extract the region via openslide with the required extra border
-  openslide_read_region(osr, (uint32_t *)region->data, request.location.x,
+  openslide_read_region(osr, padded_region.data, request.location.x,
                         request.location.y, request.level, request.size.x,
                         request.size.y);
 
@@ -392,6 +401,10 @@ int read_region(image_t *region, openslide_t *osr, request_t request) {
   ipos_t size = request.size;
   printf("box: %f, %f, %f, %f\n", box.x1, box.y1, box.x2, box.y2);
   printf("size: %7ld, %7ld\n", size.x, size.y);
+
+  // Resize in place, to replace data of original image
+  // NOTE: Unfortunately, does not support box! Need PIL methods
+  image_resize(region, &padded_region, size, VIPS_KERNEL_LANCZOS3);
 
   // TODO: Finally, resize and return
   // return region.resize(size, resample=resampling, box=box)

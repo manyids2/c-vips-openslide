@@ -11,3 +11,5 @@ gmon.txt
 
 debug.log
 .vim-arsync
+.nvim.lua
+launch.json

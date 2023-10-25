@@ -9,18 +9,6 @@ int main(void) {
   oslide_t oslide = oslide_open(path);
   oslide_print(&oslide);
 
-  // Input:
-  //   location: 6912,5376
-  //   scaling : 0.2495
-  //   size    : 256,256
-
-  // Output:
-  //   location: 27684,21528
-  //   level   : 1
-  //   size    : 267,267
-  //     fractional : 4.851555996871866,4.773402058879583
-  //     native_size: 256.50523238315725,256.50523238315725
-
   // Read region args
   ipos_t location = {.x = 6912, .y = 5376};
   double scaling = 0.2495;
