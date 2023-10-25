@@ -1,10 +1,10 @@
 #include "slide.h"
-#include "properties.h"
+#include "constants.h"
 #include <openslide/openslide.h>
 #include <stdio.h>
 #include <string.h>
 
-oslide_t open_oslide(char *path) {
+oslide_t oslide_open(char *path) {
   openslide_t *osr = openslide_open(path);
 
   // Allocate for path?
@@ -15,12 +15,12 @@ oslide_t open_oslide(char *path) {
                      .osr = osr,
                      .slide_props =
                          {
-                             .mpp = get_mpp(osr),
-                             .magnification = get_magnification(osr),
-                             .size = get_size(osr),
-                             .spacings = get_spacings(osr),
-                             .offset = get_offset(osr),
-                             .bounds = get_bounds(osr),
+                             .mpp = osr_mpp(osr),
+                             .magnification = osr_magnification(osr),
+                             .size = osr_size(osr),
+                             .spacings = osr_spacings(osr),
+                             .offset = osr_offset(osr),
+                             .bounds = osr_bounds(osr),
                          },
                      .level_props = {
                          .level_count = openslide_get_level_count(osr),
@@ -35,16 +35,16 @@ oslide_t open_oslide(char *path) {
 
   // Downsamples
   oslide.level_props.level_downsamples = malloc(level_count * sizeof(double));
-  get_level_downsamples(osr, level_count, oslide.level_props.level_downsamples);
+  osr_level_downsamples(osr, level_count, oslide.level_props.level_downsamples);
 
   // Dimensions
   oslide.level_props.level_dimensions = malloc(level_count * sizeof(ipos_t));
-  get_level_dimensions(osr, level_count, oslide.level_props.level_dimensions);
+  osr_level_dimensions(osr, level_count, oslide.level_props.level_dimensions);
 
   return oslide;
 }
 
-void print_slide(oslide_t *oslide) {
+void oslide_print(oslide_t *oslide) {
   printf("mpp     : %f\n", oslide->slide_props.mpp);
   printf("spacing : %f, %f\n", oslide->slide_props.spacings.x,
          oslide->slide_props.spacings.y);
@@ -67,7 +67,7 @@ void print_slide(oslide_t *oslide) {
   }
 }
 
-void close_oslide(oslide_t *oslide) {
+void oslide_close(oslide_t *oslide) {
   // Downsamples
   if (oslide->level_props.level_downsamples) {
     free(oslide->level_props.level_downsamples);
@@ -79,7 +79,7 @@ void close_oslide(oslide_t *oslide) {
   openslide_close(oslide->osr);
 }
 
-int length_associated_images(openslide_t *osr) {
+int osr_length_associated_images(openslide_t *osr) {
   int count = 0;
   const char *const *associated_image_names =
       openslide_get_associated_image_names(osr);
@@ -90,7 +90,7 @@ int length_associated_images(openslide_t *osr) {
   return count;
 }
 
-int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
+int osr_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
   const char *const *associated_image_names =
       openslide_get_associated_image_names(osr);
 
@@ -124,14 +124,14 @@ int get_thumbnail(openslide_t *osr, image_t *thumbnail, AssociatedImage name) {
   return 1;
 }
 
-void get_level_downsamples(openslide_t *osr, int level_count,
+void osr_level_downsamples(openslide_t *osr, int level_count,
                            double *level_downsamples) {
   for (int level = 0; level < level_count; level++) {
     level_downsamples[level] = openslide_get_level_downsample(osr, level);
   }
 }
 
-void get_level_dimensions(openslide_t *osr, int level_count,
+void osr_level_dimensions(openslide_t *osr, int level_count,
                           ipos_t *level_dimensions) {
   for (int level = 0; level < level_count; level++) {
     int64_t h, w;
@@ -141,14 +141,14 @@ void get_level_dimensions(openslide_t *osr, int level_count,
   }
 }
 
-ipos_t get_size(openslide_t *osr) {
+ipos_t osr_size(openslide_t *osr) {
   int64_t h, w;
   openslide_get_level0_dimensions(osr, &w, &h);
   ipos_t size = {.x = w, .y = h};
   return size;
 }
 
-double get_mpp(openslide_t *osr) {
+double osr_mpp(openslide_t *osr) {
   double mpp;
   const char *c_mpp = openslide_get_property_value(osr, PROPERTY_NAME_MPP_X);
   // Set to zero if not found
@@ -160,7 +160,7 @@ double get_mpp(openslide_t *osr) {
   return mpp;
 }
 
-double get_magnification(openslide_t *osr) {
+double osr_magnification(openslide_t *osr) {
   double magnification;
   const char *c_magnification =
       openslide_get_property_value(osr, PROPERTY_NAME_OBJECTIVE_POWER);
@@ -173,7 +173,7 @@ double get_magnification(openslide_t *osr) {
   return magnification;
 }
 
-dpos_t get_spacings(openslide_t *osr) {
+dpos_t osr_spacings(openslide_t *osr) {
   double mpp_x;
   const char *c_mpp_x = openslide_get_property_value(osr, PROPERTY_NAME_MPP_X);
   // Set to zero if not found
@@ -195,7 +195,7 @@ dpos_t get_spacings(openslide_t *osr) {
   return spacings;
 }
 
-ipos_t get_offset(openslide_t *osr) {
+ipos_t osr_offset(openslide_t *osr) {
   const char *c_x = openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_X);
   const char *c_y = openslide_get_property_value(osr, PROPERTY_NAME_BOUNDS_Y);
   int64_t x, y;
@@ -213,7 +213,7 @@ ipos_t get_offset(openslide_t *osr) {
   return offset;
 }
 
-ipos_t get_bounds(openslide_t *osr) {
+ipos_t osr_bounds(openslide_t *osr) {
   // Set to slide size if not found
   int64_t h, w;
   openslide_get_level0_dimensions(osr, &w, &h);
@@ -312,8 +312,8 @@ request_t read_region_request(ipos_t location, double scaling, ipos_t size,
   ipos_t native_level_size = level_props.level_dimensions[native_level];
   double native_level_downsample = level_props.level_downsamples[native_level];
   double native_scaling = scaling * native_level_downsample;
-  dpos_t native_location = _div(to_double(location), native_scaling);
-  dpos_t native_size = _div(to_double(size), native_scaling);
+  dpos_t native_location = _div(_double(location), native_scaling);
+  dpos_t native_size = _div(_double(size), native_scaling);
 
   // PIL lanczos uses 3 pixels as support. See pillow: https://git.io/JG0QD
   double native_extra_pixels;
@@ -325,27 +325,27 @@ request_t read_region_request(ipos_t location, double scaling, ipos_t size,
 
   // Compute the native location while counting the extra pixels.
   ipos_t native_location_adapted =
-      to_int(_floor(_sub(native_location, native_extra_pixels)));
+      _int(_floor(_sub(native_location, native_extra_pixels)));
   native_location_adapted =
-      _clip2size(native_location_adapted, native_level_size);
+      clip2size(native_location_adapted, native_level_size);
 
   // Unfortunately openslide requires the location in pixels from level 0.
-  ipos_t level_zero_location_adapted = to_int(_floor(
-      _mul(to_double(native_location_adapted), native_level_downsample)));
+  ipos_t level_zero_location_adapted = _int(
+      _floor(_mul(_double(native_location_adapted), native_level_downsample)));
 
   // Recompute native_size_adapted, native_location_adapted
   dpos_t dnative_location_adapted =
-      _div(to_double(level_zero_location_adapted), native_level_downsample);
-  ipos_t native_size_adapted = to_int(
+      _div(_double(level_zero_location_adapted), native_level_downsample);
+  ipos_t native_size_adapted = _int(
       _ceil(_add(_addv(native_location, native_size), native_extra_pixels)));
   dpos_t dnative_size_adapted =
-      _subv(to_double(_clip2size(native_size_adapted, native_level_size)),
+      _subv(_double(clip2size(native_size_adapted, native_level_size)),
             dnative_location_adapted);
 
   // By casting to int we introduce a small error in the right boundary
   // leading to a smaller region which might lead to the target region to
   // overflow from the sampled region.
-  native_size_adapted = to_int(_ceil(dnative_size_adapted));
+  native_size_adapted = _int(_ceil(dnative_size_adapted));
 
   // For read_region
   request_t request = {
@@ -370,7 +370,7 @@ int read_region(image_t *region, openslide_t *osr, request_t request) {
                         request.size.y);
 
   // TODO: Read size of returned region
-  dpos_t region_size = to_double(request.size);
+  dpos_t region_size = _double(request.size);
 
   // # Within this region, there are a bunch of extra pixels, we interpolate
   // to sample # the pixel in the right position to retain the right sample
@@ -382,7 +382,7 @@ int read_region(image_t *region, openslide_t *osr, request_t request) {
   dpos_t fractional_coordinates = request.native.fractional_coordinates;
   dpos_t native_size = request.native.native_size;
   dpos_t clipped_bottom_right =
-      _clip2size_d(_addv(fractional_coordinates, native_size), region_size);
+      clip2size_d(_addv(fractional_coordinates, native_size), region_size);
   dbox_t box = {
       .x1 = fractional_coordinates.x,
       .y1 = fractional_coordinates.y,

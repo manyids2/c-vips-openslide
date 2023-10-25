@@ -10,8 +10,6 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-char *str_at(char **p, int i);
-
 typedef struct ipos_t {
   int64_t x, y;
 } ipos_t;

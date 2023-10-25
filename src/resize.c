@@ -1,6 +1,6 @@
 #include "resize.h"
 
-int resize_image(image_t *out, image_t *in, ipos_t size,
+int image_resize(image_t *out, image_t *in, ipos_t size,
                  VipsKernel resampling) {
   VipsImage *img = vips_image_new_from_memory(
       in->data, (in->width * in->height * in->bands), in->width, in->height,
@@ -21,7 +21,7 @@ int resize_image(image_t *out, image_t *in, ipos_t size,
   return err;
 }
 
-int rescale_image(image_t *out, image_t *in, double scaling,
+int image_rescale(image_t *out, image_t *in, double scaling,
                   VipsKernel resampling) {
   VipsImage *img = vips_image_new_from_memory(
       in->data, (in->width * in->height * in->bands), in->width, in->height,

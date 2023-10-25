@@ -1,7 +1,7 @@
 #include "ops.h"
 
 // Clip values from 0 to size boundaries.
-ipos_t _clip2size(ipos_t a, ipos_t size) {
+ipos_t clip2size(ipos_t a, ipos_t size) {
   // return np.clip(a, (0, 0), size)
   ipos_t clipped = {
       .x = MAX(a.x, 0),
@@ -12,7 +12,7 @@ ipos_t _clip2size(ipos_t a, ipos_t size) {
   return clipped;
 }
 
-dpos_t _clip2size_d(dpos_t a, dpos_t size) {
+dpos_t clip2size_d(dpos_t a, dpos_t size) {
   // return np.clip(a, (0, 0), size)
   dpos_t clipped = {
       .x = MAX(a.x, 0),
@@ -29,12 +29,12 @@ ipos_t get_scaled_size(ipos_t size, double scaling) {
   return ret;
 }
 
-ipos_t to_int(dpos_t a) {
+ipos_t _int(dpos_t a) {
   ipos_t b = {.x = a.x, .y = a.y};
   return b;
 }
 
-dpos_t to_double(ipos_t a) {
+dpos_t _double(ipos_t a) {
   dpos_t b = {.x = a.x, .y = a.y};
   return b;
 }

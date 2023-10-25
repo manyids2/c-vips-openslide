@@ -6,8 +6,8 @@ int main(void) {
   printf("path: %s\r\n", path);
 
   // Load all props
-  oslide_t oslide = open_oslide(path);
-  print_slide(&oslide);
+  oslide_t oslide = oslide_open(path);
+  oslide_print(&oslide);
 
   // Input:
   //   location: 6912,5376
@@ -42,7 +42,7 @@ int main(void) {
   read_region(&region, oslide.osr, request);
 
   // Close and free
-  close_oslide(&oslide);
+  oslide_close(&oslide);
 
   return 0;
 }
