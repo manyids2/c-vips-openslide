@@ -1,10 +1,11 @@
 #pragma once
 
-#include <math.h>
-#include <openslide/openslide.h>
+#include <math.h> // floor, ceil
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <openslide/openslide.h>
 
 // Utils
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

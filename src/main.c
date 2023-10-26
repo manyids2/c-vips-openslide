@@ -21,13 +21,14 @@ int main(void) {
                                           oslide.level_props);
   print_request(request);
 
+  // BUG: FAILING
   // Go further and get the region
-  image_t region = {
-      .width = request.size.x,
-      .height = request.size.y,
-      .bands = 4,
-      .data = malloc(request.size.x * request.size.y * sizeof(uint32_t))};
-  read_region(&region, oslide.osr, request);
+  // image_t region = {
+  //     .width = size.x,
+  //     .height = size.y,
+  //     .bands = 4,
+  //     .data = malloc(size.x * size.y * sizeof(uint32_t))};
+  // read_region(&region, oslide.osr, request);
 
   // Close and free
   oslide_close(&oslide);

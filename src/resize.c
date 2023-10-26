@@ -10,6 +10,7 @@ int image_resize(image_t *out, image_t *in, ipos_t size,
   double scale_y = (double)size.y / (double)in->height;
 
   VipsImage *rsz;
+  // BUG: Fails here
   int err = vips_resize(img, &rsz, scale_x, scale_y, resampling, NULL);
 
   // Assign to out, now out owns the memory
